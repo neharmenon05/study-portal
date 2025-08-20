@@ -397,7 +397,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
     // Calculate study streak (consecutive days with study sessions)
     let studyStreak = 0;
-    let currentDate = new Date(today);
+    const currentDate = new Date(today);
     while (true) {
       const dayStart = new Date(currentDate);
       const dayEnd = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);

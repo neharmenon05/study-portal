@@ -1,10 +1,10 @@
+// tsconfig-seed.json - TypeScript config for seed file
 {
-  "ts-node": {
-    "compilerOptions": {
-      "module": "CommonJS",
-      "moduleResolution": "node",
-      "esModuleInterop": true,
-      "allowSyntheticDefaultImports": true
-    }
-  }
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS"
+  },
+  "include": [
+    "prisma/seed.ts"
+  ]
 }

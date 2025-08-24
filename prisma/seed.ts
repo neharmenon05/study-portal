@@ -1,4 +1,6 @@
+// prisma/seed.ts - Sample data for testing
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -6,293 +8,245 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // Create a demo user
-  const demoUser = await prisma.user.upsert({
-    where: { id: 'demo-user' },
+  const hashedPassword = await bcrypt.hash('password123', 12);
+  
+  const user = await prisma.user.upsert({
+    where: { email: 'demo@example.com' },
     update: {},
     create: {
-      id: 'demo-user',
+      email: 'demo@example.com',
       name: 'Demo User',
-      email: 'demo@studyportal.com',
-      createdAt: new Date(),
+      password: hashedPassword,
+      preferences: {
+        create: {
+          theme: 'system',
+          studyGoalMinutes: 120,
+          notifications: true,
+          emailNotifications: true,
+          defaultView: 'grid',
+          autoSave: true,
+          pomodoroFocus: 25,
+          pomodoroBreak: 5,
+          pomodoroLongBreak: 15
+        }
+      }
     },
+    include: {
+      preferences: true
+    }
   });
 
-  // Create user preferences
-  await prisma.userPreferences.upsert({
-    where: { userId: demoUser.id },
-    update: {},
-    create: {
-      userId: demoUser.id,
-      theme: 'system',
-      studyGoalMinutes: 120,
-      notifications: true,
-      emailNotifications: true,
-      defaultView: 'grid',
-      autoSave: true,
-      pomodoroFocus: 25,
-      pomodoroBreak: 5,
-      pomodoroLongBreak: 15,
-    },
-  });
+  console.log('👤 Created demo user:', user.email);
 
-  // Create study folders
+  // Create sample folders
   const mathFolder = await prisma.studyFolder.create({
     data: {
       name: 'Mathematics',
-      description: 'Math study materials and resources',
+      description: 'Math study materials',
       color: '#3b82f6',
-      userId: demoUser.id,
-    },
+      userId: user.id
+    }
   });
 
   const scienceFolder = await prisma.studyFolder.create({
     data: {
       name: 'Science',
-      description: 'Physics, Chemistry, and Biology materials',
+      description: 'Science study materials',
       color: '#10b981',
-      userId: demoUser.id,
-    },
+      userId: user.id
+    }
   });
 
-  // Create study materials
-  const materials = [
-    {
-      title: 'Calculus Fundamentals',
-      description: 'Comprehensive guide to differential and integral calculus',
-      type: 'pdf',
-      category: 'Mathematics',
-      tags: ['calculus', 'derivatives', 'integrals'],
-      folderId: mathFolder.id,
-      userId: demoUser.id,
-    },
-    {
-      title: 'Khan Academy - Linear Algebra',
-      description: 'Online course covering vectors, matrices, and linear transformations',
-      type: 'url',
-      url: 'https://www.khanacademy.org/math/linear-algebra',
-      category: 'Mathematics',
-      tags: ['linear-algebra', 'vectors', 'matrices'],
-      folderId: mathFolder.id,
-      userId: demoUser.id,
-    },
-    {
-      title: 'Physics: Mechanics',
-      description: 'Classical mechanics textbook with problem sets',
-      type: 'pdf',
-      category: 'Science',
-      tags: ['physics', 'mechanics', 'motion'],
-      folderId: scienceFolder.id,
-      userId: demoUser.id,
-    },
-    {
-      title: 'MIT OpenCourseWare - Chemistry',
-      description: 'Free chemistry course materials from MIT',
-      type: 'url',
-      url: 'https://ocw.mit.edu/courses/chemistry/',
-      category: 'Science',
-      tags: ['chemistry', 'mit', 'free-course'],
-      folderId: scienceFolder.id,
-      userId: demoUser.id,
-    },
-    {
-      title: 'Data Structures and Algorithms',
-      description: 'Computer Science fundamentals',
-      type: 'doc',
-      category: 'Computer Science',
-      tags: ['algorithms', 'data-structures', 'programming'],
-      userId: demoUser.id,
-    },
-  ];
+  // Create sample materials
+  const materials = await Promise.all([
+    prisma.studyMaterial.create({
+      data: {
+        title: 'Algebra Fundamentals',
+        description: 'Basic algebra concepts and equations',
+        type: 'pdf',
+        category: 'Mathematics',
+        tags: ['algebra', 'equations', 'fundamentals'],
+        userId: user.id,
+        folderId: mathFolder.id,
+        progress: 75
+      }
+    }),
+    prisma.studyMaterial.create({
+      data: {
+        title: 'Physics: Motion and Forces',
+        description: 'Introduction to classical mechanics',
+        type: 'video',
+        category: 'Physics',
+        tags: ['physics', 'mechanics', 'forces'],
+        userId: user.id,
+        folderId: scienceFolder.id,
+        progress: 45
+      }
+    }),
+    prisma.studyMaterial.create({
+      data: {
+        title: 'Chemistry Periodic Table',
+        description: 'Interactive periodic table reference',
+        type: 'url',
+        url: 'https://ptable.com/',
+        category: 'Chemistry',
+        tags: ['chemistry', 'periodic-table', 'elements'],
+        userId: user.id,
+        folderId: scienceFolder.id
+      }
+    })
+  ]);
 
-  for (const material of materials) {
-    await prisma.studyMaterial.create({ data: material });
-  }
+  console.log('📚 Created sample materials:', materials.length);
 
-  // Create flashcard decks
-  const mathDeck = await prisma.flashcardDeck.create({
+  // Create sample flashcard deck
+  const deck = await prisma.flashcardDeck.create({
     data: {
-      name: 'Calculus Formulas',
-      description: 'Essential calculus formulas and derivatives',
+      name: 'Basic Algebra',
+      description: 'Essential algebra concepts',
       color: '#8b5cf6',
-      userId: demoUser.id,
+      userId: user.id,
+      cards: {
+        create: [
+          {
+            front: 'What is the solution to x + 5 = 10?',
+            back: 'x = 5',
+            difficulty: 'easy'
+          },
+          {
+            front: 'Solve for y: 2y - 4 = 8',
+            back: 'y = 6',
+            difficulty: 'normal'
+          },
+          {
+            front: 'What is the quadratic formula?',
+            back: 'x = (-b ± √(b² - 4ac)) / 2a',
+            difficulty: 'hard'
+          }
+        ]
+      }
     },
+    include: {
+      cards: true
+    }
   });
 
-  const scienceDeck = await prisma.flashcardDeck.create({
+  // Create deck stats
+  await prisma.deckStats.create({
     data: {
-      name: 'Physics Constants',
-      description: 'Important physics constants and formulas',
-      color: '#ef4444',
-      userId: demoUser.id,
-    },
-  });
-
-  // Create flashcards
-  const mathCards = [
-    {
-      front: 'What is the derivative of x²?',
-      back: '2x',
-      difficulty: 'easy' as const,
-      deckId: mathDeck.id,
-    },
-    {
-      front: 'What is the integral of 1/x?',
-      back: 'ln|x| + C',
-      difficulty: 'normal' as const,
-      deckId: mathDeck.id,
-    },
-    {
-      front: 'What is the chain rule formula?',
-      back: 'If f(x) = g(h(x)), then f\'(x) = g\'(h(x)) · h\'(x)',
-      difficulty: 'hard' as const,
-      deckId: mathDeck.id,
-    },
-  ];
-
-  const scienceCards = [
-    {
-      front: 'What is the speed of light in vacuum?',
-      back: '299,792,458 m/s (approximately 3 × 10⁸ m/s)',
-      difficulty: 'easy' as const,
-      deckId: scienceDeck.id,
-    },
-    {
-      front: 'What is Planck\'s constant?',
-      back: 'h = 6.626 × 10⁻³⁴ J·s',
-      difficulty: 'normal' as const,
-      deckId: scienceDeck.id,
-    },
-  ];
-
-  for (const card of [...mathCards, ...scienceCards]) {
-    await prisma.flashcard.create({ data: card });
-  }
-
-  // Update deck stats
-  await prisma.deckStats.upsert({
-    where: { deckId: mathDeck.id },
-    update: {
-      totalCards: mathCards.length,
-      newCards: mathCards.length,
-    },
-    create: {
-      deckId: mathDeck.id,
-      totalCards: mathCards.length,
-      newCards: mathCards.length,
+      deckId: deck.id,
+      totalCards: deck.cards.length,
+      newCards: deck.cards.length,
       learningCards: 0,
       reviewCards: 0,
-      suspendedCards: 0,
-    },
+      suspendedCards: 0
+    }
   });
 
-  await prisma.deckStats.upsert({
-    where: { deckId: scienceDeck.id },
-    update: {
-      totalCards: scienceCards.length,
-      newCards: scienceCards.length,
-    },
-    create: {
-      deckId: scienceDeck.id,
-      totalCards: scienceCards.length,
-      newCards: scienceCards.length,
-      learningCards: 0,
-      reviewCards: 0,
-      suspendedCards: 0,
-    },
-  });
+  console.log('🎴 Created sample flashcard deck with stats');
 
-  // Create study goals
-  const goals = [
-    {
+  // Create sample notes
+  const notes = await Promise.all([
+    prisma.note.create({
+      data: {
+        title: 'Linear Equations Notes',
+        content: '# Linear Equations\n\nA linear equation is an equation that makes a straight line when graphed.\n\n## Standard Form\nax + by = c\n\n## Examples\n- y = 2x + 3\n- 3x + 4y = 12',
+        tags: ['algebra', 'linear-equations'],
+        userId: user.id
+      }
+    }),
+    prisma.note.create({
+      data: {
+        title: 'Newton\'s Laws Summary',
+        content: '# Newton\'s Laws of Motion\n\n## First Law (Inertia)\nAn object at rest stays at rest, and an object in motion stays in motion, unless acted upon by an external force.\n\n## Second Law\nF = ma (Force equals mass times acceleration)\n\n## Third Law\nFor every action, there is an equal and opposite reaction.',
+        tags: ['physics', 'newton', 'motion'],
+        userId: user.id,
+        isPinned: true
+      }
+    })
+  ]);
+
+  console.log('📝 Created sample notes:', notes.length);
+
+  // Create sample study sessions
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  await Promise.all([
+    prisma.studySession.create({
+      data: {
+        type: 'pomodoro',
+        duration: 25,
+        plannedDuration: 25,
+        focusRating: 4,
+        notes: 'Good focus session on algebra',
+        completed: true,
+        userId: user.id,
+        startedAt: yesterday,
+        endedAt: new Date(yesterday.getTime() + 25 * 60 * 1000)
+      }
+    }),
+    prisma.studySession.create({
+      data: {
+        type: 'custom',
+        duration: 45,
+        plannedDuration: 60,
+        focusRating: 3,
+        notes: 'Physics review - interrupted by phone call',
+        completed: true,
+        userId: user.id,
+        startedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+        endedAt: new Date(now.getTime() - 75 * 60 * 1000)
+      }
+    })
+  ]);
+
+  console.log('⏱️ Created sample study sessions');
+
+  // Create sample goals
+  const goal = await prisma.goal.create({
+    data: {
       title: 'Study 2 hours daily',
-      description: 'Maintain consistent daily study habits',
+      description: 'Maintain consistent study habit',
       type: 'time',
-      target: 120,
-      current: 45,
+      target: 120, // minutes
+      current: 70,
       unit: 'minutes',
-      deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      deadline: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
       priority: 'high',
-      userId: demoUser.id,
-    },
-    {
-      title: 'Complete 50 flashcards',
-      description: 'Review flashcards to improve retention',
-      type: 'flashcards',
-      target: 50,
-      current: 12,
-      unit: 'cards',
-      deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
-      priority: 'medium',
-      userId: demoUser.id,
-    },
-  ];
+      userId: user.id
+    }
+  });
 
-  for (const goal of goals) {
-    await prisma.goal.create({ data: goal });
-  }
+  console.log('🎯 Created sample goal');
 
-  // Create some study sessions
-  const sessions = [
-    {
-      type: 'pomodoro',
-      duration: 25,
-      plannedDuration: 25,
-      focusRating: 4,
-      notes: 'Focused session on calculus derivatives',
-      completed: true,
-      userId: demoUser.id,
-      startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      endedAt: new Date(Date.now() - 1.5 * 60 * 60 * 1000),
-    },
-    {
-      type: 'pomodoro',
-      duration: 30,
-      plannedDuration: 25,
-      focusRating: 3,
-      notes: 'Physics problem solving session',
-      completed: true,
-      userId: demoUser.id,
-      startedAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 24 hours ago
-      endedAt: new Date(Date.now() - 23.5 * 60 * 60 * 1000),
-    },
-  ];
+  // Create daily study aggregate for today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  await prisma.dailyStudyAggregate.create({
+    data: {
+      userId: user.id,
+      date: today,
+      totalMinutes: 70,
+      sessionsCount: 2,
+      materialsViewed: 3,
+      notesCreated: 1,
+      cardsReviewed: 5,
+      averageFocusRating: 3.5
+    }
+  });
 
-  for (const session of sessions) {
-    await prisma.studySession.create({ data: session });
-  }
-
-  // Create some notes
-  const notes = [
-    {
-      title: 'Calculus Chain Rule Notes',
-      content: 'The chain rule is fundamental for finding derivatives of composite functions. Key points: 1) Identify the outer and inner functions, 2) Find derivatives separately, 3) Multiply them together.',
-      tags: ['calculus', 'derivatives', 'chain-rule'],
-      userId: demoUser.id,
-    },
-    {
-      title: 'Physics Force Equations',
-      content: 'Newton\'s Laws: 1) F = ma (Second Law), 2) For every action there is an equal and opposite reaction (Third Law), 3) An object at rest stays at rest (First Law).',
-      tags: ['physics', 'forces', 'newton'],
-      userId: demoUser.id,
-    },
-  ];
-
-  for (const note of notes) {
-    await prisma.note.create({ data: note });
-  }
-
-  console.log('✅ Database seeded successfully!');
-  console.log(`👤 Created user: ${demoUser.name} (${demoUser.email})`);
-  console.log(`📁 Created ${materials.length} study materials`);
-  console.log(`🃏 Created ${mathCards.length + scienceCards.length} flashcards in 2 decks`);
-  console.log(`🎯 Created ${goals.length} study goals`);
-  console.log(`⏱️ Created ${sessions.length} study sessions`);
-  console.log(`📝 Created ${notes.length} notes`);
+  console.log('📊 Created sample analytics data');
+  console.log('✅ Seeding completed successfully!');
+  console.log('\n🔑 Demo login credentials:');
+  console.log('Email: demo@example.com');
+  console.log('Password: password123');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error seeding database:', e);
+    console.error('❌ Seeding failed:', e);
     process.exit(1);
   })
   .finally(async () => {

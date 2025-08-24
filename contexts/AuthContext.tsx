@@ -1,16 +1,31 @@
+// contexts/AuthContext.tsx - Updated to work with PostgreSQL
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, UserPreferences } from '@/types';
+
+interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  createdAt: string;
+  preferences?: {
+    theme: string;
+    studyGoalMinutes: number;
+    notifications: boolean;
+    emailNotifications: boolean;
+    defaultView: string;
+    autoSave: boolean;
+  };
+}
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
-  updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,55 +38,52 @@ export function useAuth() {
   return context;
 }
 
-const defaultPreferences: UserPreferences = {
-  theme: 'system',
-  studyGoal: 120, // 2 hours per day
-  notifications: true,
-  defaultView: 'grid',
-  autoSave: true,
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing user session in localStorage
-    const savedUser = localStorage.getItem('studyPortalUser');
-    if (savedUser) {
-      try {
-        const userData = JSON.parse(savedUser);
-        setUser({
-          ...userData,
-          createdAt: new Date(userData.createdAt),
-        });
-      } catch (error) {
-        console.error('Error parsing saved user data:', error);
-        localStorage.removeItem('studyPortalUser');
-      }
-    }
-    setIsLoading(false);
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call - in production, this would be a real authentication API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // For demo purposes, accept any email/password combination
-      const userData: User = {
-        id: `user_${Date.now()}`,
-        email,
-        name: email.split('@')[0],
-        createdAt: new Date(),
-        preferences: defaultPreferences,
-      };
-      
-      setUser(userData);
-      localStorage.setItem('studyPortalUser', JSON.stringify(userData));
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      setUser(data.user);
     } catch (error) {
-      throw new Error('Login failed. Please check your credentials.');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -80,50 +92,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (email: string, password: string, name: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      const userData: User = {
-        id: `user_${Date.now()}`,
-        email,
-        name,
-        createdAt: new Date(),
-        preferences: defaultPreferences,
-      };
-      
-      setUser(userData);
-      localStorage.setItem('studyPortalUser', JSON.stringify(userData));
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+
+      // Auto-login after registration
+      await login(email, password);
     } catch (error) {
-      throw new Error('Registration failed. Please try again.');
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('studyPortalUser');
-    // Clear all app data on logout
-    localStorage.removeItem('studyPortalData');
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still clear user state even if request fails
+      setUser(null);
+    }
   };
 
   const updateProfile = async (updates: Partial<User>) => {
     if (!user) throw new Error('No user logged in');
     
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    localStorage.setItem('studyPortalUser', JSON.stringify(updatedUser));
-  };
+    try {
+      const response = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(updates),
+      });
 
-  const updatePreferences = async (preferences: Partial<UserPreferences>) => {
-    if (!user) throw new Error('No user logged in');
-    
-    const updatedUser = {
-      ...user,
-      preferences: { ...user.preferences, ...preferences },
-    };
-    setUser(updatedUser);
-    localStorage.setItem('studyPortalUser', JSON.stringify(updatedUser));
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      const data = await response.json();
+      setUser(data.user);
+    } catch (error) {
+      throw error;
+    }
   };
 
   const value = {
@@ -133,7 +161,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     updateProfile,
-    updatePreferences,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

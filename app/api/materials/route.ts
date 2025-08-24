@@ -1,28 +1,33 @@
+// Updated app/api/materials/route.ts - with authentication
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { getUserFromRequest } from '@/lib/auth-utils';
 
-// Validation schema for creating a material
 const createMaterialSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
   type: z.enum(['pdf', 'doc', 'video', 'audio', 'image', 'url', 'other']),
-  url: z.string().url().optional(),
-  category: z.string().optional(),
+  url: z.string().url().optional().nullable(),
+  category: z.string().optional().nullable(),
   tags: z.array(z.string()).default([]),
-  color: z.string().optional(),
-  folderId: z.string().optional(),
-  userId: z.string() // We'll get this from session later
+  color: z.string().optional().nullable(),
+  folderId: z.string().optional().nullable(),
 });
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || 'demo-user'; // Temporary until we implement auth
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
     
     const materials = await prisma.studyMaterial.findMany({
       where: {
-        userId: userId
+        userId: user.id
       },
       include: {
         folder: true,
@@ -39,7 +44,13 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({ materials });
+    // Convert BigInt to string for JSON serialization
+    const materialsWithStringFileSize = materials.map(material => ({
+      ...material,
+      fileSize: material.fileSize ? material.fileSize.toString() : null
+    }));
+
+    return NextResponse.json({ materials: materialsWithStringFileSize });
   } catch (error) {
     console.error('Error fetching materials:', error);
     return NextResponse.json(
@@ -51,12 +62,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    
-    // Add demo user ID for now
     const materialData = {
       ...body,
-      userId: body.userId || 'demo-user'
+      userId: user.id
     };
     
     const validatedData = createMaterialSchema.parse(materialData);
@@ -71,7 +88,12 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({ material }, { status: 201 });
+    return NextResponse.json({ 
+      material: {
+        ...material,
+        fileSize: material.fileSize ? material.fileSize.toString() : null
+      }
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating material:', error);
     

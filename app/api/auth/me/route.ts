@@ -1,36 +1,19 @@
-// app/api/auth/me/route.ts  
-import { verify } from 'jsonwebtoken';
+// app/api/auth/me/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth-token')?.value;
+    const user = await getUserFromRequest(request);
 
-    if (!token) {
+    if (!user) {
       return NextResponse.json(
-        { error: 'No token provided' },
+        { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    const decoded = verify(token, process.env.NEXTAUTH_SECRET || 'fallback-secret') as any;
-    
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        preferences: true
-      }
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const { password: _, ...userResponse } = user;
-
-    return NextResponse.json({ user: userResponse });
+    return NextResponse.json({ user });
 
   } catch (error) {
     console.error('Auth check error:', error);

@@ -1,6 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
+// Academic Resource & Learning Hub - Complete Database Schema
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,519 +9,343 @@ datasource db {
 }
 
 // =============================================================================
-// Authentication & User Management
+// User Management & Authentication
 // =============================================================================
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
 
 model User {
   id            String    @id @default(cuid())
-  name          String?
   email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
+  name          String
+  password      String
+  role          UserRole  @default(STUDENT)
+  avatar        String?
+  bio           String?
+  isActive      Boolean   @default(true)
+  lastLogin     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // Relations
-  accounts           Account[]
-  sessions           Session[]
-  preferences        UserPreferences?
-  materials          StudyMaterial[]
-  folders            StudyFolder[]
-  notes              Note[]
-  noteFolders        NoteFolder[]
-  flashcardDecks     FlashcardDeck[]
-  studySessions      StudySession[]
-  goals              Goal[]
-  calendarEvents     CalendarEvent[]
-  notifications      Notification[]
-  auditLogs          AuditLog[]
+  // Student Relations
+  enrollments   ClassEnrollment[]
+  submissions   Submission[]
+  grades        Grade[]
+  feedbackGiven Feedback[] @relation("FeedbackAuthor")
+  chatSessions  AIChatSession[]
+  uploadedDocs  Document[] @relation("DocumentUploader")
+
+  // Teacher Relations
+  teachingClasses Class[] @relation("ClassTeacher")
+  createdAssignments Assignment[]
+  givenGrades     Grade[] @relation("GradeTeacher")
+  teacherFeedback Feedback[] @relation("TeacherFeedback")
 
   @@map("users")
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_tokens")
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
 }
 
-model UserPreferences {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  theme               String   @default("system") // light, dark, system
-  studyGoalMinutes    Int      @default(120) // daily study goal in minutes
-  notifications       Boolean  @default(true)
-  emailNotifications  Boolean  @default(true)
-  defaultView         String   @default("grid") // grid, list
-  autoSave            Boolean  @default(true)
-  pomodoroFocus       Int      @default(25) // minutes
-  pomodoroBreak       Int      @default(5) // minutes
-  pomodoroLongBreak   Int      @default(15) // minutes
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+// =============================================================================
+// Academic Structure
+// =============================================================================
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Subject {
+  id          String @id @default(cuid())
+  name        String @unique
+  code        String @unique
+  description String?
+  color       String @default("#3b82f6")
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@map("user_preferences")
+  classes     Class[]
+  documents   Document[]
+  assignments Assignment[]
+
+  @@map("subjects")
 }
 
-model AuditLog {
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  subjectId   String
+  teacherId   String
+  semester    String
+  year        Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subject     Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher     User    @relation("ClassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  enrollments ClassEnrollment[]
+  assignments Assignment[]
+
+  @@unique([name, subjectId, year, semester])
+  @@map("classes")
+}
+
+model ClassEnrollment {
+  id        String   @id @default(cuid())
+  classId   String
+  studentId String
+  enrolledAt DateTime @default(now())
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@map("class_enrollments")
+}
+
+// =============================================================================
+// Document Management
+// =============================================================================
+
+model Document {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?
+  fileName      String
+  filePath      String
+  fileSize      BigInt
+  mimeType      String
+  type          DocumentType @default(OTHER)
+  subjectId     String
+  uploaderId    String
+  isShared      Boolean     @default(false)
+  allowPeerFeedback Boolean @default(true)
+  downloadCount Int         @default(0)
+  averageRating Float       @default(0)
+  totalRatings  Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  subject       Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  uploader      User    @relation("DocumentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+  
+  versions      DocumentVersion[]
+  feedback      Feedback[]
+  tags          DocumentTag[]
+  assignments   AssignmentDocument[]
+
+  @@index([subjectId, type])
+  @@index([uploaderId])
+  @@index([isShared, averageRating])
+  @@map("documents")
+}
+
+enum DocumentType {
+  NOTES
+  CODE
+  VIDEO
+  OTHER
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  fileName   String
+  filePath   String
+  fileSize   BigInt
+  changes    String?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#6b7280")
+  createdAt DateTime @default(now())
+
+  documents DocumentTag[]
+
+  @@map("tags")
+}
+
+model DocumentTag {
+  id         String @id @default(cuid())
+  documentId String
+  tagId      String
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, tagId])
+  @@map("document_tags")
+}
+
+// =============================================================================
+// Feedback System
+// =============================================================================
+
+model Feedback {
+  id         String      @id @default(cuid())
+  documentId String
+  authorId   String
+  teacherId  String?
+  rating     Int         @default(0) // 1-5 stars
+  comment    String?
+  type       FeedbackType @default(PEER)
+  isPublic   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author   User     @relation("FeedbackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  teacher  User?    @relation("TeacherFeedback", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, authorId])
+  @@index([documentId, type])
+  @@map("feedback")
+}
+
+enum FeedbackType {
+  PEER
+  TEACHER
+}
+
+// =============================================================================
+// Assignment System
+// =============================================================================
+
+model Assignment {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  subjectId   String
+  classId     String
+  teacherId   String
+  dueDate     DateTime
+  maxPoints   Int      @default(100)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subject     Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  class       Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher     User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  documents   AssignmentDocument[]
+  submissions Submission[]
+
+  @@index([classId, dueDate])
+  @@map("assignments")
+}
+
+model AssignmentDocument {
+  id           String @id @default(cuid())
+  assignmentId String
+  documentId   String
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, documentId])
+  @@map("assignment_documents")
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  assignmentId String
+  studentId    String
+  filePath     String?
+  fileName     String?
+  fileSize     BigInt?
+  content      String?
+  status       SubmissionStatus @default(SUBMITTED)
+  submittedAt  DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  grades     Grade[]
+
+  @@unique([assignmentId, studentId])
+  @@map("submissions")
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  GRADED
+  RETURNED
+}
+
+model Grade {
+  id           String   @id @default(cuid())
+  submissionId String
+  studentId    String
+  teacherId    String
+  points       Int
+  maxPoints    Int
+  feedback     String?
+  gradedAt     DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher    User       @relation("GradeTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId])
+  @@map("grades")
+}
+
+// =============================================================================
+// AI Chat System
+// =============================================================================
+
+model AIChatSession {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("New Chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIChatMessage[]
+
+  @@map("ai_chat_sessions")
+}
+
+model AIChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      String   // 'user' or 'assistant'
+  content   String
+  createdAt DateTime @default(now())
+
+  session AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("ai_chat_messages")
+}
+
+// =============================================================================
+// System Analytics
+// =============================================================================
+
+model ActivityLog {
   id        String   @id @default(cuid())
   userId    String?
   action    String
   resource  String
   details   Json?
   ipAddress String?
-  userAgent String?
   createdAt DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@map("audit_logs")
-}
-
-// =============================================================================
-// Study Materials Management
-// =============================================================================
-
-model StudyMaterial {
-  id            String   @id @default(cuid())
-  title         String
-  description   String?
-  type          String   // pdf, doc, video, audio, image, url, other
-  url           String?
-  filePath      String?
-  fileName      String?
-  fileSize      BigInt?
-  mimeType      String?
-  category      String?
-  tags          String[] @default([])
-  color         String?
-  isFavorite    Boolean  @default(false)
-  progress      Float    @default(0) // 0-100
-  lastAccessed  DateTime?
-  notes         String?
-  userId        String
-  folderId      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder        StudyFolder?           @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  noteLinks     NoteMaterialLink[]
-  sessionLinks  StudySessionMaterial[]
-  goalLinks     GoalMaterial[]
-
-  @@index([userId, category])
-  @@index([userId, tags])
-  @@index([userId, createdAt])
-  @@map("study_materials")
-}
-
-model StudyFolder {
-  id            String   @id @default(cuid())
-  name          String
-  description   String?
-  color         String   @default("#3b82f6")
-  parentId      String?
-  userId        String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent        StudyFolder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children      StudyFolder[]   @relation("FolderHierarchy")
-  materials     StudyMaterial[]
-
-  @@index([userId, parentId])
-  @@map("study_folders")
-}
-
-// =============================================================================
-// Notes System
-// =============================================================================
-
-model Note {
-  id          String   @id @default(cuid())
-  title       String
-  content     String // Rich text content
-  excerpt     String? // Auto-generated excerpt for search
-  tags        String[] @default([])
-  color       String?
-  isPublic    Boolean  @default(false)
-  isPinned    Boolean  @default(false)
-  userId      String
-  folderId    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder        NoteFolder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  materialLinks NoteMaterialLink[]
-  versions      NoteVersion[]
-
-  @@index([userId, tags])
-  @@index([userId, createdAt])
-  @@index([userId, isPinned])
-  @@map("notes")
-}
-
-model NoteFolder {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  color       String   @default("#10b981")
-  parentId    String?
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent   NoteFolder?  @relation("NoteFolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children NoteFolder[] @relation("NoteFolderHierarchy")
-  notes    Note[]
-
-  @@index([userId, parentId])
-  @@map("note_folders")
-}
-
-model NoteMaterialLink {
-  id         String @id @default(cuid())
-  noteId     String
-  materialId String
-  createdAt  DateTime @default(now())
-
-  note     Note          @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  material StudyMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
-
-  @@unique([noteId, materialId])
-  @@map("note_material_links")
-}
-
-model NoteVersion {
-  id        String   @id @default(cuid())
-  noteId    String
-  title     String
-  content   String
-  version   Int
-  createdAt DateTime @default(now())
-
-  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
-
-  @@index([noteId, version])
-  @@map("note_versions")
-}
-
-// =============================================================================
-// Flashcards System
-// =============================================================================
-
-model FlashcardDeck {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  color       String   @default("#8b5cf6")
-  isPublic    Boolean  @default(false)
-  settings    Json? // Study settings, new cards per day, etc.
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards Flashcard[]
-  stats DeckStats?
 
   @@index([userId, createdAt])
-  @@map("flashcard_decks")
-}
-
-model Flashcard {
-  id           String    @id @default(cuid())
-  front        String
-  back         String
-  hint         String?
-  difficulty   String    @default("normal") // easy, normal, hard
-  ease         Float     @default(2.5) // SM-2 algorithm ease factor
-  interval     Int       @default(0) // Days until next review
-  repetitions  Int       @default(0)
-  lastReviewed DateTime?
-  nextReview   DateTime?
-  lapses       Int       @default(0)
-  suspended    Boolean   @default(false)
-  tags         String[]  @default([])
-  deckId       String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  // Relations
-  deck        FlashcardDeck   @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  reviewLogs  ReviewLog[]
-
-  @@index([deckId, nextReview])
-  @@index([deckId, suspended])
-  @@map("flashcards")
-}
-
-model ReviewLog {
-  id           String   @id @default(cuid())
-  cardId       String
-  rating       Int // 1-4 (again, hard, good, easy)
-  timeTaken    Int // milliseconds
-  previousEase Float
-  newEase      Float
-  previousInterval Int
-  newInterval  Int
-  createdAt    DateTime @default(now())
-
-  card Flashcard @relation(fields: [cardId], references: [id], onDelete: Cascade)
-
-  @@index([cardId, createdAt])
-  @@map("review_logs")
-}
-
-model DeckStats {
-  id              String   @id @default(cuid())
-  deckId          String   @unique
-  totalCards      Int      @default(0)
-  newCards        Int      @default(0)
-  learningCards   Int      @default(0)
-  reviewCards     Int      @default(0)
-  suspendedCards  Int      @default(0)
-  averageEase     Float    @default(2.5)
-  retention       Float    @default(0) // percentage
-  studyStreak     Int      @default(0)
-  lastStudied     DateTime?
-  updatedAt       DateTime @updatedAt
-
-  deck FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
-
-  @@map("deck_stats")
-}
-
-// =============================================================================
-// Study Sessions & Timer
-// =============================================================================
-
-model StudySession {
-  id            String   @id @default(cuid())
-  type          String   @default("pomodoro") // pomodoro, custom, break
-  duration      Int // minutes
-  plannedDuration Int? // planned duration in minutes
-  focusRating   Int? // 1-5 rating
-  notes         String?
-  tags          String[] @default([])
-  completed     Boolean  @default(false)
-  userId        String
-  goalId        String?
-  startedAt     DateTime @default(now())
-  endedAt       DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  goal      Goal?                  @relation(fields: [goalId], references: [id], onDelete: SetNull)
-  materials StudySessionMaterial[]
-
-  @@index([userId, startedAt])
-  @@index([userId, completed])
-  @@map("study_sessions")
-}
-
-model StudySessionMaterial {
-  id        String @id @default(cuid())
-  sessionId String
-  materialId String
-  createdAt DateTime @default(now())
-
-  session  StudySession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  material StudyMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
-
-  @@unique([sessionId, materialId])
-  @@map("study_session_materials")
-}
-
-// =============================================================================
-// Goals & Progress Tracking
-// =============================================================================
-
-model Goal {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  type        String // time, materials, flashcards, sessions
-  target      Float
-  current     Float    @default(0)
-  unit        String // minutes, count, etc.
-  deadline    DateTime?
-  completed   Boolean  @default(false)
-  priority    String   @default("medium") // low, medium, high
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessions  StudySession[]
-  materials GoalMaterial[]
-  progress  GoalProgress[]
-
-  @@index([userId, deadline])
-  @@index([userId, completed])
-  @@map("goals")
-}
-
-model GoalMaterial {
-  id         String @id @default(cuid())
-  goalId     String
-  materialId String
-  createdAt  DateTime @default(now())
-
-  goal     Goal          @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  material StudyMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
-
-  @@unique([goalId, materialId])
-  @@map("goal_materials")
-}
-
-model GoalProgress {
-  id        String   @id @default(cuid())
-  goalId    String
-  value     Float
-  notes     String?
-  createdAt DateTime @default(now())
-
-  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
-
-  @@index([goalId, createdAt])
-  @@map("goal_progress")
-}
-
-// =============================================================================
-// Calendar & Scheduling
-// =============================================================================
-
-model CalendarEvent {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  type        String    @default("study") // study, exam, deadline, reminder
-  startTime   DateTime
-  endTime     DateTime?
-  allDay      Boolean   @default(false)
-  color       String    @default("#3b82f6")
-  location    String?
-  url         String?
-  recurring   Boolean   @default(false)
-  recurrenceRule String? // RRULE format
-  parentId    String? // for recurring event instances
-  cancelled   Boolean   @default(false)
-  userId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent    CalendarEvent?    @relation("EventRecurrence", fields: [parentId], references: [id], onDelete: Cascade)
-  instances CalendarEvent[]   @relation("EventRecurrence")
-  reminders EventReminder[]
-
-  @@index([userId, startTime])
-  @@index([userId, type])
-  @@map("calendar_events")
-}
-
-model EventReminder {
-  id        String   @id @default(cuid())
-  eventId   String
-  type      String   @default("notification") // notification, email
-  minutes   Int // minutes before event
-  sent      Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@index([eventId, sent])
-  @@map("event_reminders")
-}
-
-// =============================================================================
-// Notifications
-// =============================================================================
-
-model Notification {
-  id        String   @id @default(cuid())
-  title     String
-  message   String
-  type      String   @default("info") // info, success, warning, error
-  read      Boolean  @default(false)
-  actionUrl String?
-  userId    String
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, read])
-  @@index([userId, createdAt])
-  @@map("notifications")
-}
-
-// =============================================================================
-// Analytics & Aggregates
-// =============================================================================
-
-model DailyStudyAggregate {
-  id                String   @id @default(cuid())
-  userId            String
-  date              DateTime @db.Date
-  totalMinutes      Int      @default(0)
-  sessionsCount     Int      @default(0)
-  materialsViewed   Int      @default(0)
-  notesCreated      Int      @default(0)
-  cardsReviewed     Int      @default(0)
-  averageFocusRating Float?   @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@unique([userId, date])
-  @@index([userId, date])
-  @@map("daily_study_aggregates")
+  @@map("activity_logs")
 }

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { sign } from 'jsonwebtoken';
+import { createAuthToken } from '@/lib/auth';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -18,12 +18,20 @@ export async function POST(request: NextRequest) {
     // Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
-      include: {
-        preferences: true
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        role: true,
+        avatar: true,
+        bio: true,
+        isActive: true,
+        createdAt: true
       }
     });
 
-    if (!user || !user.password) {
+    if (!user || !user.password || !user.isActive) {
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
@@ -40,17 +48,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Update last login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() }
+    });
+
     // Create JWT token
-    const token = sign(
-      { userId: user.id, email: user.email },
-      process.env.NEXTAUTH_SECRET || 'fallback-secret',
-      { expiresIn: '7d' }
-    );
+    const token = createAuthToken(user.id, user.email, user.role);
 
     // Remove password from response
     const { password: _, ...userResponse } = user;
 
-    // Set cookie
+    // Set cookie and return response
     const response = NextResponse.json({ 
       user: userResponse,
       message: 'Login successful' 

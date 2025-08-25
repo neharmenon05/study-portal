@@ -203,6 +203,10 @@ export async function GET(request: NextRequest) {
         recentSubmissions: recentSubmissions.map(sub => ({
           ...sub,
           fileSize: sub.fileSize ? sub.fileSize.toString() : null
+        })),
+        recentActivity: recentDocuments.map(doc => ({
+          ...doc,
+          fileSize: doc.fileSize.toString()
         }))
       });
     }

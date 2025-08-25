@@ -1,10 +1,9 @@
+// app/api/files/[filename]/route.ts - Secure file serving
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '../../../lib/auth-utils';
-import path from 'path';
-import { UPLOAD_DIR } from '../../../config';
-import { existsSync } from 'fs';
+import { getUserFromRequest } from '@/lib/auth';
+import { getFile } from '@/lib/file-storage';
+import { prisma } from '@/lib/db';
 
-// app/api/files/[filename]/route.ts - Serve uploaded files
 export async function GET(
   request: NextRequest,
   { params }: { params: { filename: string } }
@@ -12,45 +11,71 @@ export async function GET(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { filename } = params;
-    const filePath = path.join(UPLOAD_DIR, filename);
-    // Check if file exists and user has access
-    const prismaModule = await import('../../../lib/prisma');
-    const prisma = prismaModule.prisma || prismaModule.default || prismaModule;
-    const material = await prisma.studyMaterial.findFirst({
+    
+    // Find document by file path
+    const document = await prisma.document.findFirst({
       where: {
-        filePath: filename,
-        userId: user.id,
+        OR: [
+          { filePath: filename },
+          { filePath: { endsWith: filename } }
+        ]
+      },
+      include: {
+        uploader: true
       }
     });
 
-    if (!material || !existsSync(filePath)) {
-      return NextResponse.json(
-        { error: 'File not found' },
-        { status: 404 }
-      );
+    if (!document) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    // Read and serve file
-    const { readFile } = await import('fs/promises');
-    const buffer = await readFile(filePath);
+    // Check access permissions
+    const canAccess = 
+      document.uploaderId === user.id || // Owner
+      document.isShared || // Shared document
+      user.role === 'TEACHER'; // Teachers can access all
 
-    // Convert Node Buffer to ArrayBuffer to satisfy BodyInit type
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength
-    );
+    if (!canAccess) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
 
-    return new NextResponse(arrayBuffer, {
+    // Get file from storage
+    const fileBuffer = await getFile(document.filePath);
+    if (!fileBuffer) {
+      return NextResponse.json({ error: 'File not found in storage' }, { status: 404 });
+    }
+
+    // Increment download count if not the owner
+    if (document.uploaderId !== user.id) {
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { downloadCount: { increment: 1 } }
+      });
+    }
+
+    // Log access
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'FILE_DOWNLOAD',
+        resource: 'Document',
+        details: {
+          documentId: document.id,
+          fileName: document.fileName
+        }
+      }
+    });
+
+    // Return file with appropriate headers
+    return new NextResponse(fileBuffer, {
       headers: {
-        'Content-Type': material.mimeType || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${material.fileName}"`,
+        'Content-Type': document.mimeType || 'application/octet-stream',
+        'Content-Disposition': `inline; filename="${document.fileName}"`,
+        'Cache-Control': 'private, max-age=3600',
       },
     });
 

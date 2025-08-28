@@ -1,6 +1,15 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function Home() {
-  // Redirect to dashboard
-  redirect('/dashboard');
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to dashboard on client-side
+    router.push('/dashboard');
+  }, [router]);
+
+  return null;
 }

@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Bars3Icon, 
   BellIcon, 
   MagnifyingGlassIcon,
-  UserCircleIcon,
   ChevronDownIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon
@@ -74,7 +74,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <Menu as="div" className="relative">
               <div>
                 <Menu.Button className="max-w-xs bg-white dark:bg-gray-800 rounded-full flex items-center text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 lg:p-2 lg:rounded-md lg:hover:bg-gray-50 dark:lg:hover:bg-gray-700">
-                  <UserCircleIcon className="h-8 w-8 text-gray-400" />
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.avatar || undefined} />
+                    <AvatarFallback>
+                      {user?.name?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
                   <span className="hidden ml-3 text-gray-700 dark:text-gray-300 text-sm font-medium lg:block">
                     <span className="sr-only">Open user menu for </span>
                     {user?.name}
@@ -98,6 +103,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {user?.email}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 capitalize">
+                      {user?.role?.toLowerCase()}
                     </p>
                   </div>
                   <Menu.Item>

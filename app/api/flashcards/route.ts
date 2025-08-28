@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
-import { getToken } from 'next-auth/jwt';
+import { prisma } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth';
 
-// Updated app/api/flashcards/route.ts - with authentication
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
@@ -13,6 +12,11 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    // For now, return empty array since we don't have flashcardDeck table yet
+    // This will be replaced when we implement the full schema
+    const decks: any[] = [];
+    
+    /*
     const decks = await prisma.flashcardDeck.findMany({
       where: {
         userId: user.id
@@ -34,6 +38,7 @@ export async function GET(request: NextRequest) {
         createdAt: 'desc'
       }
     });
+    */
 
     return NextResponse.json({ decks });
   } catch (error) {
@@ -43,11 +48,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-async function getUserFromRequest(request: NextRequest) {
-  const token = await getToken({ req: request });
-  if (!token || !token.sub) return null;
-  const user = await prisma.user.findUnique({ where: { id: token.sub } });
-  return user;
 }

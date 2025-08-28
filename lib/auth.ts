@@ -1,6 +1,6 @@
 // lib/auth.ts - Authentication utilities
 import { NextRequest } from 'next/server';
-import { verify } from 'jsonwebtoken';
+import { verify, sign } from 'jsonwebtoken';
 import { prisma } from '@/lib/db';
 
 interface JWTPayload {
@@ -41,49 +41,19 @@ export async function getUserFromRequest(request: NextRequest) {
 }
 
 export function createAuthToken(userId: string, email: string, role: string) {
-  const jwt = require('jsonwebtoken');
-  return jwt.sign(
+  return sign(
     { userId, email, role },
     process.env.NEXTAUTH_SECRET || 'fallback-secret',
     { expiresIn: '7d' }
   );
 }
 
-export function requireAuth(handler: Function) {
-  return async (request: NextRequest, ...args: any[]) => {
-    const user = await getUserFromRequest(request);
-    
-    if (!user || !user.isActive) {
-      return Response.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    return handler(request, { user }, ...args);
-  };
-}
-
-export function requireRole(roles: string[]) {
-  return (handler: Function) => {
-    return async (request: NextRequest, context: any, ...args: any[]) => {
-      const user = await getUserFromRequest(request);
-      
-      if (!user || !user.isActive) {
-        return Response.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
-
-      if (!roles.includes(user.role)) {
-        return Response.json(
-          { error: 'Forbidden' },
-          { status: 403 }
-        );
-      }
-
-      return handler(request, { user }, ...args);
-    };
-  };
+export async function validateAuth(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  
+  if (!user || !user.isActive) {
+    return { user: null, error: 'Unauthorized' };
+  }
+  
+  return { user, error: null };
 }

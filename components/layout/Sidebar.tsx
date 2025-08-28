@@ -2,28 +2,31 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
   HomeIcon,
-  FolderIcon,
+  DocumentTextIcon as DocumentIcon,
   DocumentTextIcon,
   BookOpenIcon,
   ClockIcon,
   CalendarIcon,
   ChartBarIcon,
-  CogIcon,
+  Cog6ToothIcon,
   PlusIcon,
+  AcademicCapIcon,
+  ChatBubbleLeftIcon
 } from '@heroicons/react/24/outline';
 import {
   HomeIcon as HomeIconSolid,
-  FolderIcon as FolderIconSolid,
+  DocumentTextIcon as DocumentIconSolid,
   DocumentTextIcon as DocumentTextIconSolid,
   BookOpenIcon as BookOpenIconSolid,
   ClockIcon as ClockIconSolid,
   CalendarIcon as CalendarIconSolid,
   ChartBarIcon as ChartBarIconSolid,
-  CogIcon as CogIconSolid,
+  Cog6ToothIcon as CogIconSolid,
 } from '@heroicons/react/24/solid';
 
 interface SidebarProps {
@@ -39,26 +42,36 @@ interface NavItem {
   badge?: string | number;
 }
 
-const navigation: NavItem[] = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon, iconSolid: HomeIconSolid },
-  { name: 'Materials', href: '/materials', icon: FolderIcon, iconSolid: FolderIconSolid },
-  { name: 'Notes', href: '/notes', icon: DocumentTextIcon, iconSolid: DocumentTextIconSolid },
-  { name: 'Flashcards', href: '/flashcards', icon: BookOpenIcon, iconSolid: BookOpenIconSolid },
-  { name: 'Study Timer', href: '/timer', icon: ClockIcon, iconSolid: ClockIconSolid },
-  { name: 'Calendar', href: '/calendar', icon: CalendarIcon, iconSolid: CalendarIconSolid },
-  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, iconSolid: ChartBarIconSolid },
-  { name: 'Settings', href: '/settings', icon: CogIcon, iconSolid: CogIconSolid },
-];
-
-const quickActions = [
-  { name: 'Add Material', href: '/materials/upload', color: 'bg-blue-500' },
-  { name: 'Create Note', href: '/notes/new', color: 'bg-green-500' },
-  { name: 'New Flashcard', href: '/flashcards/new', color: 'bg-purple-500' },
-  { name: 'Study Session', href: '/timer', color: 'bg-orange-500' },
-];
-
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { user } = useAuth();
   const pathname = usePathname();
+
+  const navigation: NavItem[] = [
+    { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, iconSolid: HomeIconSolid },
+    { name: 'Documents', href: '/documents', icon: DocumentIcon, iconSolid: DocumentIconSolid },
+    { name: 'Notes', href: '/notes', icon: DocumentTextIcon, iconSolid: DocumentTextIconSolid },
+    ...(user?.role === 'TEACHER' ? [
+      { name: 'Classes', href: '/classes', icon: AcademicCapIcon, iconSolid: AcademicCapIcon },
+    ] : []),
+    { name: 'Assignments', href: '/assignments', icon: BookOpenIcon, iconSolid: BookOpenIconSolid },
+    { name: 'AI Chat', href: '/ai-chat', icon: ChatBubbleLeftIcon, iconSolid: ChatBubbleLeftIcon },
+    { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, iconSolid: ChartBarIconSolid },
+    { name: 'Calendar', href: '/calendar', icon: CalendarIcon, iconSolid: CalendarIconSolid },
+    { name: 'Timer', href: '/timer', icon: ClockIcon, iconSolid: ClockIconSolid },
+    { name: 'Settings', href: '/settings', icon: Cog6ToothIcon, iconSolid: CogIconSolid },
+  ];
+
+  const quickActions = user?.role === 'TEACHER' ? [
+    { name: 'Create Class', href: '/classes/create', color: 'bg-blue-500' },
+    { name: 'New Assignment', href: '/assignments/create', color: 'bg-green-500' },
+    { name: 'Upload Resource', href: '/documents/upload', color: 'bg-purple-500' },
+    { name: 'View Analytics', href: '/analytics', color: 'bg-orange-500' },
+  ] : [
+    { name: 'Upload Document', href: '/documents/upload', color: 'bg-blue-500' },
+    { name: 'Create Note', href: '/notes/create', color: 'bg-green-500' },
+    { name: 'New Flashcards', href: '/flashcards/create', color: 'bg-purple-500' },
+    { name: 'Study Session', href: '/timer', color: 'bg-orange-500' },
+  ];
 
   return (
     <>
@@ -105,7 +118,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="flex-1 flex flex-col overflow-y-auto">
             <nav className="flex-1 px-4 py-6 space-y-2">
               {navigation.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/');
                 const Icon = isActive ? item.iconSolid : item.icon;
 
                 return (

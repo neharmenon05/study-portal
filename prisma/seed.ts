@@ -1,252 +1,245 @@
-// prisma/seed.ts - Sample data for testing
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+// prisma/seed.ts
+import { PrismaClient, UserRole, DocumentType, FeedbackType, SubmissionStatus } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log("🌱 Starting database seed...");
 
-  // Create a demo user
-  const hashedPassword = await bcrypt.hash('password123', 12);
-  
-  const user = await prisma.user.upsert({
-    where: { email: 'demo@example.com' },
-    update: {},
-    create: {
-      email: 'demo@example.com',
-      name: 'Demo User',
-      password: hashedPassword,
-      preferences: {
-        create: {
-          theme: 'system',
-          studyGoalMinutes: 120,
-          notifications: true,
-          emailNotifications: true,
-          defaultView: 'grid',
-          autoSave: true,
-          pomodoroFocus: 25,
-          pomodoroBreak: 5,
-          pomodoroLongBreak: 15
-        }
-      }
+  // --------------------------------------------------------------------------
+  // USERS
+  // --------------------------------------------------------------------------
+  const admin = await prisma.user.create({
+    data: {
+      email: "admin@example.com",
+      name: "Admin User",
+      password: "hashedpassword",
+      role: UserRole.ADMIN,
     },
-    include: {
-      preferences: true
-    }
   });
 
-  console.log('👤 Created demo user:', user.email);
-
-  // Create sample folders
-  const mathFolder = await prisma.studyFolder.create({
+  const teacher = await prisma.user.create({
     data: {
-      name: 'Mathematics',
-      description: 'Math study materials',
-      color: '#3b82f6',
-      userId: user.id
-    }
+      email: "teacher@example.com",
+      name: "John Teacher",
+      password: "hashedpassword",
+      role: UserRole.TEACHER,
+    },
   });
 
-  const scienceFolder = await prisma.studyFolder.create({
+  const student = await prisma.user.create({
     data: {
-      name: 'Science',
-      description: 'Science study materials',
-      color: '#10b981',
-      userId: user.id
-    }
+      email: "student@example.com",
+      name: "Jane Student",
+      password: "hashedpassword",
+      role: UserRole.STUDENT,
+    },
   });
 
-  // Create sample materials
-  const materials = await Promise.all([
-    prisma.studyMaterial.create({
-      data: {
-        title: 'Algebra Fundamentals',
-        description: 'Basic algebra concepts and equations',
-        type: 'pdf',
-        category: 'Mathematics',
-        tags: ['algebra', 'equations', 'fundamentals'],
-        userId: user.id,
-        folderId: mathFolder.id,
-        progress: 75
-      }
-    }),
-    prisma.studyMaterial.create({
-      data: {
-        title: 'Physics: Motion and Forces',
-        description: 'Introduction to classical mechanics',
-        type: 'video',
-        category: 'Physics',
-        tags: ['physics', 'mechanics', 'forces'],
-        userId: user.id,
-        folderId: scienceFolder.id,
-        progress: 45
-      }
-    }),
-    prisma.studyMaterial.create({
-      data: {
-        title: 'Chemistry Periodic Table',
-        description: 'Interactive periodic table reference',
-        type: 'url',
-        url: 'https://ptable.com/',
-        category: 'Chemistry',
-        tags: ['chemistry', 'periodic-table', 'elements'],
-        userId: user.id,
-        folderId: scienceFolder.id
-      }
-    })
-  ]);
+  console.log("👥 Users created");
 
-  console.log('📚 Created sample materials:', materials.length);
-
-  // Create sample flashcard deck
-  const deck = await prisma.flashcardDeck.create({
+  // --------------------------------------------------------------------------
+  // SUBJECTS
+  // --------------------------------------------------------------------------
+  const math = await prisma.subject.create({
     data: {
-      name: 'Basic Algebra',
-      description: 'Essential algebra concepts',
-      color: '#8b5cf6',
-      userId: user.id,
-      cards: {
+      name: "Mathematics",
+      code: "MATH101",
+      description: "Introduction to Mathematics",
+    },
+  });
+
+  const physics = await prisma.subject.create({
+    data: {
+      name: "Physics",
+      code: "PHY101",
+      description: "Fundamentals of Physics",
+    },
+  });
+
+  console.log("📘 Subjects created");
+
+  // --------------------------------------------------------------------------
+  // CLASSES
+  // --------------------------------------------------------------------------
+  const mathClass = await prisma.class.create({
+    data: {
+      name: "Math Class A",
+      subjectId: math.id,
+      teacherId: teacher.id,
+      semester: "Fall",
+      year: 2025,
+    },
+  });
+
+  const physicsClass = await prisma.class.create({
+    data: {
+      name: "Physics Class A",
+      subjectId: physics.id,
+      teacherId: teacher.id,
+      semester: "Fall",
+      year: 2025,
+    },
+  });
+
+  console.log("🏫 Classes created");
+
+  // --------------------------------------------------------------------------
+  // ENROLLMENTS
+  // --------------------------------------------------------------------------
+  await prisma.classEnrollment.create({
+    data: {
+      classId: mathClass.id,
+      studentId: student.id,
+    },
+  });
+
+  await prisma.classEnrollment.create({
+    data: {
+      classId: physicsClass.id,
+      studentId: student.id,
+    },
+  });
+
+  console.log("📚 Enrollments created");
+
+  // --------------------------------------------------------------------------
+  // ASSIGNMENTS
+  // --------------------------------------------------------------------------
+  const assignment1 = await prisma.assignment.create({
+    data: {
+      title: "Algebra Homework",
+      description: "Solve algebra problems",
+      subjectId: math.id,
+      classId: mathClass.id,
+      teacherId: teacher.id,
+      dueDate: new Date("2025-09-15"),
+    },
+  });
+
+  const assignment2 = await prisma.assignment.create({
+    data: {
+      title: "Mechanics Homework",
+      description: "Physics mechanics problems",
+      subjectId: physics.id,
+      classId: physicsClass.id,
+      teacherId: teacher.id,
+      dueDate: new Date("2025-09-20"),
+    },
+  });
+
+  console.log("📝 Assignments created");
+
+  // --------------------------------------------------------------------------
+  // SUBMISSION + GRADE
+  // --------------------------------------------------------------------------
+  const submission = await prisma.submission.create({
+    data: {
+      assignmentId: assignment1.id,
+      studentId: student.id,
+      content: "Algebra answers",
+      status: SubmissionStatus.SUBMITTED,
+    },
+  });
+
+  await prisma.grade.create({
+    data: {
+      submissionId: submission.id,
+      studentId: student.id,
+      teacherId: teacher.id,
+      points: 90,
+      maxPoints: 100,
+      feedback: "Great work!",
+    },
+  });
+
+  console.log("✅ Submission + Grade created");
+
+  // --------------------------------------------------------------------------
+  // DOCUMENT + VERSION + TAG + FEEDBACK
+  // --------------------------------------------------------------------------
+  const document = await prisma.document.create({
+    data: {
+      title: "Algebra Notes",
+      fileName: "algebra.pdf",
+      filePath: "/uploads/algebra.pdf",
+      fileSize: BigInt(1024),
+      mimeType: "application/pdf",
+      type: DocumentType.NOTES,
+      subjectId: math.id,
+      uploaderId: teacher.id,
+      isShared: true,
+    },
+  });
+
+  await prisma.documentVersion.create({
+    data: {
+      documentId: document.id,
+      version: 1,
+      fileName: "algebra_v1.pdf",
+      filePath: "/uploads/algebra_v1.pdf",
+      fileSize: BigInt(1024),
+    },
+  });
+
+  const tag = await prisma.tag.create({
+    data: { name: "Algebra", color: "#f97316" },
+  });
+
+  await prisma.documentTag.create({
+    data: {
+      documentId: document.id,
+      tagId: tag.id,
+    },
+  });
+
+  await prisma.feedback.create({
+    data: {
+      documentId: document.id,
+      authorId: student.id,
+      teacherId: teacher.id,
+      rating: 5,
+      comment: "Very helpful!",
+      type: FeedbackType.PEER,
+    },
+  });
+
+  console.log("📄 Documents + Feedback created");
+
+  // --------------------------------------------------------------------------
+  // AI CHAT + ACTIVITY LOG
+  // --------------------------------------------------------------------------
+  const session = await prisma.aIChatSession.create({
+    data: {
+      userId: student.id,
+      title: "Homework Help",
+      messages: {
         create: [
-          {
-            front: 'What is the solution to x + 5 = 10?',
-            back: 'x = 5',
-            difficulty: 'easy'
-          },
-          {
-            front: 'Solve for y: 2y - 4 = 8',
-            back: 'y = 6',
-            difficulty: 'normal'
-          },
-          {
-            front: 'What is the quadratic formula?',
-            back: 'x = (-b ± √(b² - 4ac)) / 2a',
-            difficulty: 'hard'
-          }
-        ]
-      }
+          { role: "user", content: "Can you help with algebra?" },
+          { role: "assistant", content: "Sure! Let's go through it." },
+        ],
+      },
     },
-    include: {
-      cards: true
-    }
   });
 
-  // Create deck stats
-  await prisma.deckStats.create({
+  await prisma.activityLog.create({
     data: {
-      deckId: deck.id,
-      totalCards: deck.cards.length,
-      newCards: deck.cards.length,
-      learningCards: 0,
-      reviewCards: 0,
-      suspendedCards: 0
-    }
+      userId: student.id,
+      action: "LOGIN",
+      resource: "User",
+      details: { success: true },
+      ipAddress: "127.0.0.1",
+    },
   });
 
-  console.log('🎴 Created sample flashcard deck with stats');
+  console.log("🤖 AI Chat + ActivityLog created");
 
-  // Create sample notes
-  const notes = await Promise.all([
-    prisma.note.create({
-      data: {
-        title: 'Linear Equations Notes',
-        content: '# Linear Equations\n\nA linear equation is an equation that makes a straight line when graphed.\n\n## Standard Form\nax + by = c\n\n## Examples\n- y = 2x + 3\n- 3x + 4y = 12',
-        tags: ['algebra', 'linear-equations'],
-        userId: user.id
-      }
-    }),
-    prisma.note.create({
-      data: {
-        title: 'Newton\'s Laws Summary',
-        content: '# Newton\'s Laws of Motion\n\n## First Law (Inertia)\nAn object at rest stays at rest, and an object in motion stays in motion, unless acted upon by an external force.\n\n## Second Law\nF = ma (Force equals mass times acceleration)\n\n## Third Law\nFor every action, there is an equal and opposite reaction.',
-        tags: ['physics', 'newton', 'motion'],
-        userId: user.id,
-        isPinned: true
-      }
-    })
-  ]);
-
-  console.log('📝 Created sample notes:', notes.length);
-
-  // Create sample study sessions
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  
-  await Promise.all([
-    prisma.studySession.create({
-      data: {
-        type: 'pomodoro',
-        duration: 25,
-        plannedDuration: 25,
-        focusRating: 4,
-        notes: 'Good focus session on algebra',
-        completed: true,
-        userId: user.id,
-        startedAt: yesterday,
-        endedAt: new Date(yesterday.getTime() + 25 * 60 * 1000)
-      }
-    }),
-    prisma.studySession.create({
-      data: {
-        type: 'custom',
-        duration: 45,
-        plannedDuration: 60,
-        focusRating: 3,
-        notes: 'Physics review - interrupted by phone call',
-        completed: true,
-        userId: user.id,
-        startedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
-        endedAt: new Date(now.getTime() - 75 * 60 * 1000)
-      }
-    })
-  ]);
-
-  console.log('⏱️ Created sample study sessions');
-
-  // Create sample goals
-  const goal = await prisma.goal.create({
-    data: {
-      title: 'Study 2 hours daily',
-      description: 'Maintain consistent study habit',
-      type: 'time',
-      target: 120, // minutes
-      current: 70,
-      unit: 'minutes',
-      deadline: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-      priority: 'high',
-      userId: user.id
-    }
-  });
-
-  console.log('🎯 Created sample goal');
-
-  // Create daily study aggregate for today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  await prisma.dailyStudyAggregate.create({
-    data: {
-      userId: user.id,
-      date: today,
-      totalMinutes: 70,
-      sessionsCount: 2,
-      materialsViewed: 3,
-      notesCreated: 1,
-      cardsReviewed: 5,
-      averageFocusRating: 3.5
-    }
-  });
-
-  console.log('📊 Created sample analytics data');
-  console.log('✅ Seeding completed successfully!');
-  console.log('\n🔑 Demo login credentials:');
-  console.log('Email: demo@example.com');
-  console.log('Password: password123');
+  console.log("🌱 Seeding completed successfully!");
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+    console.error("❌ Seeding failed:", e);
     process.exit(1);
   })
   .finally(async () => {

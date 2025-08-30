@@ -8,6 +8,7 @@ interface User {
   name: string | null;
   role: string;
   avatar: string | null;
+  bio: string | null;
   createdAt: string;
 }
 
@@ -15,7 +16,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, role?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string, role: string = 'STUDENT') => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/auth/register', {
@@ -89,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, role }),
       });
 
       const data = await response.json();
@@ -115,7 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
-      // Still clear user state even if request fails
       setUser(null);
     }
   };

@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
-import toast from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -16,6 +16,7 @@ const loginSchema = z.object({
 
 const registerSchema = loginSchema.extend({
   name: z.string().min(2, 'Name must be at least 2 characters'),
+  role: z.enum(['STUDENT', 'TEACHER']).default('STUDENT'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -45,6 +46,7 @@ export default function AuthPage() {
       email: '',
       password: '',
       name: '',
+      role: 'STUDENT',
       confirmPassword: '',
     },
   });
@@ -60,7 +62,7 @@ export default function AuthPage() {
 
   const onRegisterSubmit = async (data: RegisterForm) => {
     try {
-      await register(data.email, data.password, data.name);
+      await register(data.email, data.password, data.name, data.role);
       toast.success('Account created successfully!');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Registration failed');
@@ -225,6 +227,19 @@ export default function AuthPage() {
               </div>
 
               <div>
+                <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Role
+                </label>
+                <select
+                  {...registerForm.register('role')}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="STUDENT">Student</option>
+                  <option value="TEACHER">Teacher</option>
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Password
                 </label>
@@ -300,9 +315,13 @@ export default function AuthPage() {
 
           {/* Demo Account Info */}
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
-              <strong>Demo App:</strong> You can use any email and password to {isLogin ? 'sign in' : 'sign up'}
+            <p className="text-sm text-blue-700 dark:text-blue-300 text-center mb-2">
+              <strong>Demo Credentials:</strong>
             </p>
+            <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+              <p>Email: demo@example.com</p>
+              <p>Password: password123</p>
+            </div>
           </div>
         </div>
       </motion.div>
